@@ -226,3 +226,46 @@ Distribute traffic across multiple servers to:
 | Custom Load                | ✅ (custom) | Optional         | Complex/dynamic environments      |
 
 ---
+### **Uses of Load Balancing**
+
+1. **Improves Website Performance**
+   Distributes traffic across multiple servers to ensure fast response times and avoid overloading any single server.
+   *E.g., E-commerce site during peak sales.*
+
+2. **Ensures High Availability & Reliability**
+   Redirects traffic to healthy servers if one fails, avoiding downtime.
+   *E.g., Banking app maintains service during server outages.*
+
+3. **Enables Scalability**
+   Easily accommodates growing demand by adding more servers to the pool.
+   *E.g., Streaming platform handles user growth smoothly.*
+
+4. **Provides Redundancy**
+   Maintains multiple copies of data/services to prevent loss from hardware failure.
+   *E.g., File storage services keep data available even if one server fails.*
+
+5. **Optimizes Network Traffic**
+   Distributes data across multiple links or paths to reduce congestion.
+   *E.g., Corporate networks use multiple internet connections efficiently.*
+
+6. **Supports Geographic Distribution**
+   Routes users to the nearest or best-performing data center to reduce latency.
+   *E.g., Global companies improve UX by region-based routing.*
+
+7. **Boosts Application Performance**
+   Assigns dedicated resources per application to maintain optimal service levels.
+   *E.g., Enterprises ensure email, file sharing, etc., run smoothly.*
+
+8. **Enhances Security**
+   Mitigates DDoS attacks by spreading traffic across multiple servers.
+   *E.g., News websites stay online during attack attempts.*
+
+9. **Reduces Costs**
+   Improves resource utilization, lowering hardware and energy expenses.
+   *E.g., SMBs minimize server usage with efficient distribution.*
+
+10. **Enables Content Caching**
+    Serves static content from the load balancer directly for faster delivery.
+    *E.g., Popular streaming content cached at the edge to reduce server load.*
+
+---
