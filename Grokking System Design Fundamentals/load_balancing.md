@@ -269,3 +269,63 @@ Distribute traffic across multiple servers to:
     *E.g., Popular streaming content cached at the edge to reduce server load.*
 
 ---
+
+### **Types of Load Balancers**
+
+1. **Hardware Load Balancer**
+
+* **What**: Physical device using ASICs/FPGAs for traffic distribution.
+* **Pros**: High performance, built-in features, handles large volumes.
+* **Cons**: Expensive, less scalable, needs expertise.
+* **Use Case**: Large e-commerce platforms for web traffic distribution.
+
+2. **Software Load Balancer**
+
+* **What**: Runs on general-purpose servers or VMs using software algorithms.
+* **Pros**: Cost-effective, scalable, flexible deployment.
+* **Cons**: Lower performance under heavy load, resource-intensive.
+* **Use Case**: Startups using cloud VMs for app traffic management.
+
+3. **Cloud-based Load Balancer**
+
+* **What**: Managed service from cloud providers.
+* **Pros**: Scalable, low maintenance, pay-as-you-go pricing.
+* **Cons**: Less control, vendor lock-in risks.
+* **Use Case**: Mobile apps distributing API requests across cloud servers.
+
+4. **DNS Load Balancer**
+
+* **What**: Uses DNS to resolve a domain to multiple IPs.
+* **Pros**: Simple, geographic distribution possible.
+* **Cons**: No real-time health checks, slow updates.
+* **Use Case**: CDNs routing users to nearest edge servers.
+
+5. **Global Server Load Balancing (GSLB)**
+
+* **What**: Combines DNS load balancing with health checks and routing logic.
+* **Pros**: Intelligent distribution across global data centers.
+* **Cons**: Complex setup, DNS limitations.
+* **Use Case**: Multinational companies optimizing latency and uptime.
+
+6. **Hybrid Load Balancer**
+
+* **What**: Mix of hardware, software, and cloud load balancing techniques.
+* **Pros**: Highly flexible, best performance and reliability mix.
+* **Cons**: Complex, costly, requires deep expertise.
+* **Use Case**: Streaming platforms managing global scale and varied traffic types.
+
+7. **Layer 4 Load Balancer (Transport Layer)**
+
+* **What**: Uses TCP/UDP headers (IP and port) to route traffic.
+* **Pros**: Fast, protocol-agnostic, simple.
+* **Cons**: No app-level awareness or session handling.
+* **Use Case**: Online gaming platforms distributing player traffic.
+
+8. **Layer 7 Load Balancer (Application Layer)**
+
+* **What**: Uses HTTP headers, cookies, and URLs for routing.
+* **Pros**: Smart, supports session persistence, SSL offloading.
+* **Cons**: Slower, complex, needs more resources.
+* **Use Case**: Web apps routing API requests to appropriate microservices.
+
+---
