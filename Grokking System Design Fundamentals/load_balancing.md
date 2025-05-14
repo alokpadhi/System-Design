@@ -329,3 +329,36 @@ Distribute traffic across multiple servers to:
 * **Use Case**: Web apps routing API requests to appropriate microservices.
 
 ---
+
+### **Stateless vs. Stateful Load Balancing**
+
+#### **Stateless Load Balancing**
+
+* **Definition**: Does **not store session information**; routes each request independently.
+* **Routing Basis**: Uses request data like IP address, URL, or headers.
+* **Pros**: Fast, simple, and scalable.
+* **Use Case**: Apps where each request is independent (e.g., product search by location).
+
+#### **Stateful Load Balancing**
+
+* **Definition**: **Maintains session information**; ensures client requests go to the same server.
+* **Use Case**: Apps needing session persistence (e.g., user login and personal data access).
+
+**Types of Stateful Load Balancing**:
+
+1. **Source IP Affinity**:
+
+   * Routes based on client’s IP.
+   * **Limitation**: Unreliable if IP changes (e.g., mobile users).
+2. **Session Affinity**:
+
+   * Uses session ID (e.g., cookie or URL param) for consistent routing.
+   * **More robust** than IP-based affinity.
+
+---
+
+### **When to Use**
+
+* **Stateless**: For scalable, stateless services (e.g., APIs, search).
+* **Stateful**: For apps requiring session tracking (e.g., e-commerce login).
+
