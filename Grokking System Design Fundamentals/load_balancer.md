@@ -396,35 +396,6 @@ Here is a detailed summary of the "High Availability and Fault Tolerance" page, 
 **In summary:**  
 Redundancy, effective health checks, centralized management, and robust monitoring mean that if any single component fails, traffic seamlessly shifts and the system keeps running. This is critical for modern, always-on applications (retail, streaming, banking) that cannot afford downtime.Here is a detailed summary with examples:
 
-***
-
-**Redundancy and Failover Strategies for Load Balancers**
-- *Active-passive configuration*: One load balancer (active) serves all traffic, while a backup (passive) is ready to take over instantly if the active fails.
-  - **Example:** An online banking platform uses active-passive setup—if the main balancer fails during peak hours, the spare switches in, preventing outage for customers.
-- *Active-active configuration*: Multiple balancers process traffic concurrently; if one fails, others continue, ensuring smoother failover and better resource use.
-  - **Example:** A cloud provider uses several live balancers. If one fails, traffic is automatically handled by the rest, ensuring reliability for millions of users.
-
-***
-
-**Health Checks and Monitoring**
-- Load balancers regularly test backend servers (via health checks) to see if they are responding. Unhealthy servers are instantly removed from the pool.
-  - **Example:** In a food delivery app, if one backend fails its health check, the balancer stops sending orders to it and only uses healthy servers for fast delivery.
-- Monitoring extends to the balancers themselves: by tracking response times, errors, and usage, problems can be caught early.
-  - **Example:** If error rates surge, an alert is raised and engineers are notified for quick intervention.
-
-***
-
-**Synchronization and State Sharing**
-- *Centralized configuration management*: Use tools like etcd, Consul, ZooKeeper to keep all balancer instances synchronized on settings and server status.
-  - **Example:** An enterprise SaaS vendor uses Consul, so all balancer updates are instantly shared across its entire global infrastructure.
-- *State sharing and replication*: When load balancers need to remember session data, they replicate critical info (sessions, backend status) across all instances using databases/distributed caches like Redis or Memcached.
-  - **Example:** An online retail site using sticky sessions stores session data in Redis, making user routing seamless across all balancer instances.
-
-***
-
-**Summary**:  
-High availability and fault tolerance in load balancing are achieved using redundancy (multiple balancer instances), ongoing health checks/monitoring, configuration and state synchronization, and rapid failover. This ensures reliable, always-on services—critical for e-commerce, fintech, streaming, and any application that cannot afford outages.
-
 [Ref](https://www.designgurus.io/course-play/grokking-system-design-fundamentals/doc/high-availability-and-fault-tolerance)
 
 # Scalability and Performance
