@@ -450,4 +450,240 @@ Both read-through and read-aside cache strategies are widely used to improve dat
 
 [Ref](https://www.designgurus.io/course-play/grokking-system-design-fundamentals/doc/cache-read-strategies)
 
+### Cache Coherence and Consistency Models
+
+# What’s the difference?
+
+* **Cache coherence**: keeps **one item’s value** the same across caches (who has the latest copy?).
+* **Consistency model**: sets **when/what order** everyone sees **all** reads/writes across the system.
+
+# Cache coherence (how caches stay in sync)
+
+* **Write-invalidate**: on write, others’ copies are marked “stale”; they refetch next time.
+  *Examples*:
+
+  * Multi-core CPUs (e.g., MESI-like protocols): Core A updates `x`, other cores’ `x` lines are invalidated; they reload on next read.
+  * CDNs: you “purge/invalidate” `/logo.png`; the next user forces a fetch from origin.
+* **Write-update (broadcast)**: on write, the new value is pushed to others immediately.
+  *Examples*:
+
+  * Some snooping-bus CPU designs: a write causes an update message so peers patch their cache line.
+  * Realtime collaborative docs: when you type a character, peers receive the new text instantly (conceptually “update” rather than “invalidate then refetch”).
+
+# Consistency models (what you can rely on)
+
+* **Strict consistency**: every write is seen **instantly** by everyone.
+  *Think*: A single in-memory variable behind a global lock; any machine reads the newest value immediately. (Great for correctness, terrible for latency/distribution.)
+* **Sequential consistency**: all operations appear in **one global order** that respects each thread’s program order.
+  *Examples*:
+
+  * A single shared append-only log (like a totally ordered message queue): consumers read events in the same sequence.
+  * Multiplayer game server applying moves one-by-one in a global tick order.
+* **Causal consistency**: everyone agrees on the order of **related** operations (cause → effect); unrelated ops can be seen in different orders.
+  *Examples*:
+
+  * Social apps: you always see a **comment** after its **post**, but two unrelated posts may swap order across users.
+  * Issue trackers: a “close” action appears after the “open” it depends on, even if other updates interleave differently.
+* **Eventual consistency**: replicas converge **given time**, with no guarantees on timing/order in the meantime.
+  *Examples*:
+
+  * DNS changes: not everyone sees the new IP right away, but all resolvers converge.
+  * Shopping cart or profile updates across regions in a geo-replicated database: a change made in Delhi appears in Frankfurt **soon**, not instantly.
+
+# Quick choosing guide
+
+* **Need absolute correctness now (money transfers, inventory decrements)?** Favor stronger models (often via a single leader/log → sequential or stronger).
+* **High read volume, global scale, can tolerate brief staleness (feeds, likes, counts)?** Eventual or causal gives speed and availability.
+* **Inside CPUs or tightly coupled clusters?** Coherence is mandatory; use **write-invalidate** when writes are frequent/read-mostly (cheaper traffic), **write-update** when many readers benefit from immediate new values.
+
+### Caching Challenges
+Here’s a crisp, example-driven summary of the most common cache problems, what they look like in the wild, and practical ways to mitigate them.
+
+# 1) Thundering herd
+
+**What it is:** A popular item expires → tons of clients miss the cache at once → origin gets slammed.
+**Real-world:** A product page’s “today’s price” (TTL 5 min) expires at 10:00:00. Thousands of users refresh, all miss Redis, and your pricing service spikes to 100% CPU.
+**Fixes:**
+
+* **Stagger/Jitter TTLs:** Add random ±20% to expiration to avoid synchronized expiry.
+* **Early refresh (refresh-ahead):** Background job refreshes hot keys before TTL (e.g., when 80% TTL consumed).
+* **Per-key lock (single-flight):** First miss fetches; others wait on the same in-flight request.
+
+# 2) Cache penetration
+
+**What it is:** Requests for data that don’t exist (or invalid params) always miss and hammer origin.
+**Real-world:** Bots hammer `/api/product?id=99999999`. There’s no such product, so every request skips cache and hits DB.
+**Fixes:**
+
+* **Negative caching:** Cache “not found” with short TTL (e.g., 30–60s).
+* **Bloom filter / existence check:** Quick “probably exists” test before going to cache/DB.
+* **Input validation/rate limits:** Drop obviously invalid keys early at the edge/API gateway.
+
+# 3) Big key
+
+**What it is:** One oversized value dominates capacity or network, causing evictions/slow transfers.
+**Real-world:** Caching a 5 MB “mega-configuration” blob for the homepage; each fetch blows out bandwidth and evicts many small, valuable entries.
+**Fixes:**
+
+* **Compress:** Gzip/Zstd values before caching (watch CPU trade-offs).
+* **Chunk:** Split into logical sub-keys (`config:v2:header`, `config:v2:footer`) so hot parts stay hot.
+* **Tiered storage:** Put very large objects in a CDN/object store; keep only pointers/ETags in RAM cache.
+
+# 4) Hot key
+
+**What it is:** One ultra-popular key gets hammered, causing contention or hotspot nodes.
+**Real-world:** The “top deals” JSON is read thousands of times per second; one Redis shard becomes a bottleneck.
+**Fixes:**
+
+* **Replicate/fan-out reads:** Mirror the key across N nodes; client or proxy load-balances.
+* **Key scattering:** Add a small suffix shard (`deals:v1:{A|B|C}`) and randomly read one; update all on write.
+* **Edge caching/CDN:** Push hot content closer to users; reduce core cache load.
+
+# 5) Cache stampede (dogpile)
+
+**What it is:** Many clients miss and concurrently recompute/fetch the *same* item. Similar to thundering herd, focused on duplicate recomputation.
+**Real-world:** Ten microservices all try to rebuild the same expensive recommendation list when the key expires.
+**Fixes:**
+
+* **Request coalescing / single-flight:** Only one recomputation; others await the result.
+* **Soft TTL + background refresh:** Serve slightly stale (safe) data while a worker refreshes in the background.
+* **Probabilistic early expiration:** The hotter the key, the earlier individual callers treat it as “expired” to smooth refreshes.
+
+# 6) Cache pollution
+
+**What it is:** Low-value or one-off items evict high-value items → hit rate drops.
+**Real-world:** Personal “you-might-also-like” results for millions of users get cached, but each is read once; they evict the “category page” data read by everyone.
+**Fixes:**
+
+* **Better admission/eviction:** Use LFU/TinyLFU or ARC instead of pure LRU; only admit items that show reuse.
+* **Segregate caches:** Split “personalized/one-off” from “shared/hot” into different pools.
+* **TTL hygiene:** Short TTLs (or no cache) for truly one-off responses; longer for shared content.
+
+# 7) Cache drift (stale/incorrect data)
+
+**What it is:** Cache diverges from source of truth after updates.
+**Real-world:** Inventory says “In Stock” on product pages for minutes after the last unit was sold.
+**Fixes:**
+
+* **Write-through / write-around policies:** On writes, update or invalidate cache deterministically.
+* **Event-driven invalidation:** Source systems publish “price_changed”/“inventory_changed” events (Kafka/PubSub) → consumers invalidate or refresh specific keys.
+* **Versioned keys & ETags:** Use `product:123:v7`; updates bump the version so old readers naturally miss and refetch.
+
+---
+
+## Quick heuristics for choosing strategies
+
+* **High read, low write, strong freshness (prices/inventory):** Write-through + event invalidation + short TTL + single-flight.
+* **Massively read-heavy shared content (home/category pages):** Edge/CDN caching, key replication, refresh-ahead, jittered TTLs.
+* **Personalized or long-tail content:** Minimize caching or use short TTLs and admission control (TinyLFU); avoid polluting shared caches.
+* **Large blobs:** Store in CDN/object storage; cache metadata/partials; compress/chunk.
+
+## Simple patterns you can drop in
+
+* **Per-key mutex around misses:** Prevents stampedes and herds in one shot.
+* **Jittered TTLs:** `ttl = base * (0.9 + random() * 0.2)` to desynchronize expirations.
+* **Soft TTL + background refresh:** Serve stale for a brief “grace” window while refreshing.
+* **Negative cache with cap:** Cache 404s briefly, but cap counts to avoid poisoning.
+
+Use this as a checklist during design reviews: identify hot keys, big keys, long-tail keys; set TTLs with jitter; choose admission/eviction wisely; and wire up event-driven invalidation for anything correctness-critical.
+
+### Cache Performance Metrics
+
+Here’s a clear, example-driven summary you can drop into a runbook or dashboard review.
+
+# What to measure (and why)
+
+**1) Hit rate (a.k.a. cache hit ratio)**
+
+* **Definition:** `% of requests served from cache`
+  `hit_rate = cache_hits / (cache_hits + cache_misses)`
+* **Why it matters:** Directly reduces origin load and end-user latency.
+* **Real-world examples:**
+
+  * **CDN images:** If `/img/product/*.jpg` hit rate jumps from 70% → 95%, your image origin traffic can drop ~80%.
+  * **API layer (Redis) for product details:** A 90% hit rate means only 1 in 10 calls hits the database.
+* **Nuance:** Track **request hit rate** *and* **byte hit rate** (big files/images skew bandwidth more than requests).
+* **Targets:**
+
+  * Static assets on CDN: **>95%**.
+  * Read-mostly API data: **80–95%** (varies by TTL & key diversity).
+* **If low:** Keys aren’t stable, TTL too short, cache is too small, or content isn’t cacheable (auth, no-cache headers).
+
+**2) Miss rate**
+
+* **Definition:** `% of requests NOT served from cache` (1 − hit rate).
+* **Why it matters:** Misses are expensive (origin calls, recompute). Focus on **miss penalty**: average extra latency and cost when you miss.
+* **Real-world example:**
+
+  * Price service: cache miss triggers a fan-out to 3 downstream services → p95 spikes from 60 ms (hit) to 400 ms (miss).
+* **If high:** Add **negative caching** for 404s, **refresh-ahead** for hot keys, or **single-flight/per-key locks** to avoid dogpiles.
+
+**3) Cache size (capacity & effectiveness)**
+
+* **Definition:** Memory/storage allocated (GB) and how efficiently it’s used.
+* **Why it matters:** Too small → evictions → lower hit rate. Too big → $$ without gains.
+* **Real-world examples:**
+
+  * **Redis tier:** Bumping from 16 GB → 32 GB raises hit rate only 1%? That’s near diminishing returns.
+  * **Browser cache:** Serving far-future `Cache-Control` and content hashing (`app.abcd1234.js`) lets browsers keep assets for weeks with zero server cost.
+* **Support metrics:**
+
+  * **Evictions/sec** (lower is better), **effective working set** (distinct hot keys over time), **admission policy** (LFU/TinyLFU beats pure LRU for long tail).
+* **If you see lots of evictions:** Increase capacity, **shard**, compress values, or split “shared hot” vs “personalized long-tail” caches.
+
+**4) Cache latency**
+
+* **Definition:** Time to serve from cache (p50/p95/p99).
+* **Why it matters:** Even with high hit rate, slow cache = slow app.
+* **Real-world examples:**
+
+  * **Redis in same AZ:** ~1–2 ms p50; cross-region adds 30–80 ms RTT.
+  * **CDN edge:** 5–20 ms typical; a miss might be 200–600 ms back to origin.
+* **If high:** Place cache closer (edge/regional replicas), fix hot-key contention, right-size network/instance class, and use pipelining/batching.
+
+---
+
+## Quick mental math (to explain impact)
+
+If **hit rate = 80%**, **cache latency = 5 ms**, **origin latency = 200 ms**:
+Average latency ≈ `0.8×5 + 0.2×200 = 4 + 40 = 44 ms`.
+Raise hit rate to **92%** → `0.92×5 + 0.08×200 = 4.6 + 16 = 20.6 ms` (≈2× faster perceived speed).
+
+---
+
+## What “good” looks like (at a glance)
+
+| Metric            | Good Signals                               | Red Flags                     | Knobs to Turn                                                                       |
+| ----------------- | ------------------------------------------ | ----------------------------- | ----------------------------------------------------------------------------------- |
+| **Hit rate**      | CDN static >95%; API 80–95%                | Low & flat over time          | Stabilize keys, longer TTL, vary TTL with jitter, pre-warm, better admission policy |
+| **Miss rate**     | Falling with capacity or key tuning        | Spikes on cron/TTL boundaries | Single-flight, refresh-ahead, negative caching, validate inputs (stop bogus keys)   |
+| **Cache size**    | Few evictions, rising hit rate as you grow | Many evictions, thrash        | Increase capacity, shard/replicate, compress, split hot/shared vs personalized      |
+| **Cache latency** | Low p95 and stable p99                     | High/erratic p99              | Co-locate cache, fix hot keys, upgrade instance/network, batch/pipeline             |
+
+---
+
+## How to instrument (practical tips)
+
+* **Counters:** `cache_gets`, `cache_hits`, `cache_misses`, `evictions`, `set_errors`.
+* **Timers:** `cache_hit_latency_{p50,p95,p99}`, `cache_miss_penalty`.
+* **Labels/segments:** by **endpoint**, **key prefix** (`product:*`, `price:*`), **region**, and **client** (mobile/web).
+* **Dashboards:**
+
+  * Chart **hit rate** and **byte hit rate**.
+  * Overlay TTL boundaries/ deploys to catch **thundering herd** effects.
+  * Watch **p99 cache latency** separately from **overall p99** to spot network or hot-key issues.
+
+---
+
+## Real-world patterns to move the needle
+
+* **Hot read paths (e-commerce product, category pages):**
+
+  * Use **edge/CDN** for images & static JSON; **ETag** + `stale-while-revalidate`; add TTL jitter.
+* **Expensive computations (recommendations):**
+
+  * **Soft TTL** + serve-stale window, background refresh, and **single-flight** to prevent stampedes.
+* **Long-tail personalized data:**
+
+  * Very short TTLs or skip caching; keep shared data in a separate, protected tier to avoid **cache pollution**.
 
